@@ -1,65 +1,670 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useCallback } from "react";
+
+interface VideoRow {
+  id: number;
+  topic: string;
+  views: string;
+  likes: string;
+  comments: string;
+  shares: string;
+  watchTime: string;
+}
+
+interface AnalysisSection {
+  title: string;
+  icon: string;
+  content: string;
+}
+
+interface Analysis {
+  topPerformers: AnalysisSection;
+  hookStyle: AnalysisSection;
+  contentThemes: AnalysisSection;
+  nextVideos: AnalysisSection;
+  postingPattern: AnalysisSection;
+  stopDoing: AnalysisSection;
+}
+
+const SAMPLE_DATA: Omit<VideoRow, "id">[] = [
+  { topic: "POV: I quit my 9-5 to go full-time creator", views: "284000", likes: "22100", comments: "1840", shares: "3200", watchTime: "68" },
+  { topic: "5 things I wish I knew before starting TikTok", views: "156000", likes: "14200", comments: "980", shares: "2100", watchTime: "74" },
+  { topic: "What my first $10k month actually looked like", views: "420000", likes: "38500", comments: "3200", shares: "5800", watchTime: "71" },
+  { topic: "Rating my old videos (they're embarrassing)", views: "92000", likes: "7400", comments: "620", shares: "410", watchTime: "81" },
+  { topic: "Day in the life of a creator — unfiltered", views: "67000", likes: "5100", comments: "340", shares: "280", watchTime: "52" },
+  { topic: "The algorithm is broken and here's proof", views: "512000", likes: "41000", comments: "4800", shares: "9200", watchTime: "65" },
+  { topic: "Answering your most asked questions", views: "44000", likes: "2900", comments: "180", shares: "90", watchTime: "38" },
+  { topic: "I tried posting 3x a day for 30 days", views: "198000", likes: "17600", comments: "1440", shares: "2900", watchTime: "77" },
+  { topic: "Honest review: creator economy in 2024", views: "88000", likes: "7100", comments: "520", shares: "610", watchTime: "61" },
+  { topic: "How I hit 100k followers in 4 months", views: "634000", likes: "54200", comments: "5100", shares: "11400", watchTime: "73" },
+  { topic: "My weekly content planning routine", views: "38000", likes: "2200", comments: "140", shares: "80", watchTime: "44" },
+  { topic: "Things successful TikTokers do differently", views: "277000", likes: "23800", comments: "1960", shares: "4100", watchTime: "69" },
+];
+
+function createEmptyRow(id: number): VideoRow {
+  return { id, topic: "", views: "", likes: "", comments: "", shares: "", watchTime: "" };
+}
+
+const INITIAL_ROWS = 5;
 
 export default function Home() {
+  const [rows, setRows] = useState<VideoRow[]>(
+    Array.from({ length: INITIAL_ROWS }, (_, i) => createEmptyRow(i + 1))
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [nextId, setNextId] = useState(INITIAL_ROWS + 1);
+
+  const updateRow = useCallback((id: number, field: keyof Omit<VideoRow, "id">, value: string) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  }, []);
+
+  const addRow = useCallback(() => {
+    if (rows.length >= 20) return;
+    setRows((prev) => [...prev, createEmptyRow(nextId)]);
+    setNextId((n) => n + 1);
+  }, [rows.length, nextId]);
+
+  const removeRow = useCallback((id: number) => {
+    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev));
+  }, []);
+
+  const loadSampleData = useCallback(() => {
+    const sampleRows = SAMPLE_DATA.map((d, i) => ({ ...d, id: i + 1 }));
+    setRows(sampleRows);
+    setNextId(sampleRows.length + 1);
+    setAnalysis(null);
+    setError(null);
+  }, []);
+
+  const handleAnalyse = useCallback(async () => {
+    const filledRows = rows.filter((r) => r.topic.trim() && r.views);
+    if (filledRows.length < 3) {
+      setError("Please enter at least 3 videos to get a meaningful analysis.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setAnalysis(null);
+
+    try {
+      const videos = filledRows.map((r) => ({
+        topic: r.topic.trim(),
+        views: Number(r.views) || 0,
+        likes: Number(r.likes) || 0,
+        comments: Number(r.comments) || 0,
+        shares: Number(r.shares) || 0,
+        watchTime: Number(r.watchTime) || 0,
+      }));
+
+      const res = await fetch("/api/analyse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videos }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
+
+      setAnalysis(data.analysis);
+
+      setTimeout(() => {
+        document.getElementById("results")?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [rows]);
+
+  const filledCount = rows.filter((r) => r.topic.trim() && r.views).length;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
+      {/* Header */}
+      <header
+        style={{
+          borderBottom: "1px solid var(--border-subtle)",
+          padding: "20px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          maxWidth: 1100,
+          margin: "0 auto",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "var(--purple)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 16,
+            }}
+          >
+            ⚡
+          </div>
+          <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>ViralIQ</span>
+        </div>
+        <span
+          style={{
+            fontSize: 12,
+            color: "var(--text-dim)",
+            background: "var(--surface-2)",
+            padding: "4px 10px",
+            borderRadius: 20,
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
+          Powered by Claude AI
+        </span>
+      </header>
+
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 80px" }}>
+        {/* Hero */}
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <div
+            style={{
+              display: "inline-block",
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "var(--purple)",
+              background: "rgba(155, 92, 255, 0.1)",
+              padding: "6px 14px",
+              borderRadius: 20,
+              marginBottom: 20,
+              border: "1px solid rgba(155, 92, 255, 0.2)",
+            }}
+          >
+            AI Content Strategist
+          </div>
+          <h1
+            style={{
+              fontSize: "clamp(32px, 5vw, 52px)",
+              fontWeight: 800,
+              letterSpacing: "-0.04em",
+              lineHeight: 1.1,
+              marginBottom: 16,
+              background: "linear-gradient(135deg, #fff 30%, #9B5CFF 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            Know exactly what to post next.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p
+            style={{
+              fontSize: 18,
+              color: "var(--text-dim)",
+              maxWidth: 520,
+              margin: "0 auto",
+              lineHeight: 1.6,
+            }}
+          >
+            Paste your TikTok stats and get a data-driven strategy built from your best-performing content.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Input Section */}
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: 16,
+            overflow: "hidden",
+            marginBottom: 24,
+          }}
+        >
+          {/* Section header */}
+          <div
+            style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid var(--border-subtle)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <div>
+              <h2 style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Your Video Stats</h2>
+              <p style={{ fontSize: 13, color: "var(--text-dim)" }}>
+                Enter data for your last 10–20 videos. Minimum 3 to analyse.
+              </p>
+            </div>
+            <button
+              onClick={loadSampleData}
+              style={{
+                background: "rgba(155, 92, 255, 0.1)",
+                border: "1px solid rgba(155, 92, 255, 0.3)",
+                color: "var(--purple)",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.target as HTMLButtonElement).style.background = "rgba(155, 92, 255, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.background = "rgba(155, 92, 255, 0.1)";
+              }}
+            >
+              ✨ Load sample data
+            </button>
+          </div>
+
+          {/* Table */}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  {["#", "Video topic / hook", "Views", "Likes", "Comments", "Shares", "Watch time %", ""].map((h, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        padding: i === 0 ? "12px 12px 12px 20px" : "12px 12px",
+                        textAlign: "left",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "var(--text-dim)",
+                        whiteSpace: "nowrap",
+                        width: i === 0 ? 40 : i === 1 ? "auto" : i === 7 ? 40 : 90,
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr
+                    key={row.id}
+                    style={{
+                      borderBottom: "1px solid var(--border-subtle)",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLTableRowElement).style.background = "var(--surface-2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLTableRowElement).style.background = "transparent";
+                    }}
+                  >
+                    <td style={{ padding: "8px 12px 8px 20px", color: "var(--text-dim)", fontSize: 13 }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: "8px 12px" }}>
+                      <input
+                        type="text"
+                        placeholder="e.g. POV: I quit my job to go full-time..."
+                        value={row.topic}
+                        onChange={(e) => updateRow(row.id, "topic", e.target.value)}
+                        style={inputStyle}
+                      />
+                    </td>
+                    {(["views", "likes", "comments", "shares", "watchTime"] as const).map((field) => (
+                      <td key={field} style={{ padding: "8px 12px" }}>
+                        <input
+                          type="number"
+                          placeholder={field === "watchTime" ? "72" : "0"}
+                          value={row[field]}
+                          onChange={(e) => updateRow(row.id, field, e.target.value)}
+                          min={0}
+                          max={field === "watchTime" ? 100 : undefined}
+                          style={{ ...inputStyle, width: "100%" }}
+                        />
+                      </td>
+                    ))}
+                    <td style={{ padding: "8px 12px 8px 8px", textAlign: "center" }}>
+                      <button
+                        onClick={() => removeRow(row.id)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--muted)",
+                          cursor: "pointer",
+                          fontSize: 16,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          lineHeight: 1,
+                          transition: "color 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.target as HTMLButtonElement).style.color = "#ff5c5c";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.target as HTMLButtonElement).style.color = "var(--muted)";
+                        }}
+                        title="Remove row"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Table footer */}
+          <div
+            style={{
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
           >
-            Documentation
-          </a>
+            <button
+              onClick={addRow}
+              disabled={rows.length >= 20}
+              style={{
+                background: "none",
+                border: "1px dashed var(--border)",
+                color: "var(--text-dim)",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: 13,
+                cursor: rows.length >= 20 ? "not-allowed" : "pointer",
+                opacity: rows.length >= 20 ? 0.4 : 1,
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                if (rows.length < 20)
+                  (e.target as HTMLButtonElement).style.borderColor = "var(--purple)";
+              }}
+              onMouseLeave={(e) => {
+                (e.target as HTMLButtonElement).style.borderColor = "var(--border)";
+              }}
+            >
+              + Add row {rows.length >= 20 ? "(max 20)" : `(${rows.length}/20)`}
+            </button>
+            <span style={{ fontSize: 13, color: "var(--text-dim)" }}>
+              {filledCount} video{filledCount !== 1 ? "s" : ""} entered
+            </span>
+          </div>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div
+            style={{
+              background: "rgba(255, 80, 80, 0.08)",
+              border: "1px solid rgba(255, 80, 80, 0.25)",
+              color: "#ff8080",
+              padding: "14px 18px",
+              borderRadius: 10,
+              fontSize: 14,
+              marginBottom: 20,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Analyse button */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 60 }}>
+          <button
+            onClick={handleAnalyse}
+            disabled={isLoading || filledCount < 3}
+            style={{
+              background: isLoading || filledCount < 3 ? "var(--surface-2)" : "var(--purple)",
+              color: isLoading || filledCount < 3 ? "var(--text-dim)" : "#fff",
+              border: "none",
+              padding: "16px 40px",
+              borderRadius: 12,
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: isLoading || filledCount < 3 ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              boxShadow: isLoading || filledCount < 3 ? "none" : "0 0 30px rgba(155, 92, 255, 0.35)",
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading && filledCount >= 3) {
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--purple-dim)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 50px rgba(155, 92, 255, 0.5)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading && filledCount >= 3) {
+                (e.currentTarget as HTMLButtonElement).style.background = "var(--purple)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 30px rgba(155, 92, 255, 0.35)";
+              }
+            }}
+          >
+            {isLoading ? (
+              <>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 16,
+                    height: 16,
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                  }}
+                  className="spin"
+                />
+                Analysing your content…
+              </>
+            ) : (
+              <>⚡ Analyse My Content</>
+            )}
+          </button>
+        </div>
+
+        {/* Loading skeleton */}
+        {isLoading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="shimmer"
+                style={{ height: 180, borderRadius: 14, border: "1px solid var(--border-subtle)" }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Results */}
+        {analysis && !isLoading && (
+          <div id="results" className="fade-in">
+            <div style={{ textAlign: "center", marginBottom: 36 }}>
+              <h2
+                style={{
+                  fontSize: 28,
+                  fontWeight: 800,
+                  letterSpacing: "-0.03em",
+                  marginBottom: 8,
+                }}
+              >
+                Your Content Strategy Report
+              </h2>
+              <p style={{ color: "var(--text-dim)", fontSize: 15 }}>
+                Based on {filledCount} videos — here's exactly what the data says.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gap: 16,
+              }}
+            >
+              {Object.values(analysis).map((section: AnalysisSection, i) => (
+                <AnalysisCard key={i} section={section} index={i} />
+              ))}
+            </div>
+
+            <div
+              style={{
+                textAlign: "center",
+                marginTop: 48,
+                padding: "24px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+              }}
+            >
+              <p style={{ color: "var(--text-dim)", fontSize: 14, marginBottom: 16 }}>
+                Want to re-analyse with updated data?
+              </p>
+              <button
+                onClick={() => {
+                  setAnalysis(null);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                style={{
+                  background: "none",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-dim)",
+                  padding: "10px 22px",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--purple)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--purple)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--text-dim)";
+                }}
+              >
+                ↑ Back to top
+              </button>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Footer */}
+      <footer
+        style={{
+          borderTop: "1px solid var(--border-subtle)",
+          padding: "20px 24px",
+          textAlign: "center",
+          color: "var(--text-dim)",
+          fontSize: 13,
+        }}
+      >
+        ViralIQ — Built with Claude AI. Your data never leaves this session.
+      </footer>
     </div>
   );
 }
+
+function AnalysisCard({ section, index }: { section: AnalysisSection; index: number }) {
+  const isStopDoing = section.title?.toLowerCase().includes("stop");
+
+  return (
+    <div
+      className="fade-in"
+      style={{
+        background: "var(--surface)",
+        border: `1px solid ${isStopDoing ? "rgba(255, 80, 80, 0.2)" : "var(--border-subtle)"}`,
+        borderRadius: 14,
+        padding: "24px",
+        animationDelay: `${index * 60}ms`,
+        animationFillMode: "both",
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        if (!isStopDoing)
+          (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)";
+      }}
+      onMouseLeave={(e) => {
+        if (!isStopDoing)
+          (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-subtle)";
+      }}
+    >
+      {/* Card header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <span
+          style={{
+            fontSize: 22,
+            lineHeight: 1,
+            background: isStopDoing ? "rgba(255, 80, 80, 0.1)" : "rgba(155, 92, 255, 0.1)",
+            padding: "8px",
+            borderRadius: 8,
+          }}
+        >
+          {section.icon}
+        </span>
+        <h3
+          style={{
+            fontWeight: 700,
+            fontSize: 15,
+            letterSpacing: "-0.01em",
+            color: isStopDoing ? "#ff8080" : "var(--text)",
+          }}
+        >
+          {section.title}
+        </h3>
+      </div>
+
+      {/* Divider */}
+      <div
+        style={{
+          height: 1,
+          background: isStopDoing ? "rgba(255, 80, 80, 0.1)" : "var(--border-subtle)",
+          marginBottom: 16,
+        }}
+      />
+
+      {/* Content */}
+      <p
+        style={{
+          fontSize: 14,
+          lineHeight: 1.75,
+          color: "#ccc",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {section.content}
+      </p>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid transparent",
+  color: "var(--text)",
+  padding: "7px 10px",
+  borderRadius: 6,
+  fontSize: 13,
+  width: "100%",
+  outline: "none",
+  transition: "border-color 0.15s",
+  minWidth: 0,
+};
