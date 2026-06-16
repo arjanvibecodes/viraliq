@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface VideoRow {
   id: number;
@@ -56,6 +56,15 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nextId, setNextId] = useState(INITIAL_ROWS + 1);
+  const [analysisCount, setAnalysisCount] = useState(0);
+  const [hasUnlimitedAccess, setHasUnlimitedAccess] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHasUnlimitedAccess(localStorage.getItem("viraliq_access") === "true");
+    }
+  }, []);
 
   const updateRow = useCallback((id: number, field: keyof Omit<VideoRow, "id">, value: string) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -79,12 +88,8 @@ export default function Home() {
     setError(null);
   }, []);
 
-  const handleAnalyse = useCallback(async () => {
+  const runAnalysis = useCallback(async () => {
     const filledRows = rows.filter((r) => r.topic.trim() && r.views);
-    if (filledRows.length < 3) {
-      setError("Please enter at least 3 videos to get a meaningful analysis.");
-      return;
-    }
 
     setIsLoading(true);
     setError(null);
@@ -113,6 +118,7 @@ export default function Home() {
       }
 
       setAnalysis(data.analysis);
+      setAnalysisCount((c) => c + 1);
 
       setTimeout(() => {
         document.getElementById("results")?.scrollIntoView({ behavior: "smooth" });
@@ -123,6 +129,27 @@ export default function Home() {
       setIsLoading(false);
     }
   }, [rows]);
+
+  const handleAnalyse = useCallback(() => {
+    const filledRows = rows.filter((r) => r.topic.trim() && r.views);
+    if (filledRows.length < 3) {
+      setError("Please enter at least 3 videos to get a meaningful analysis.");
+      return;
+    }
+    // First analysis is always free; subsequent ones require email
+    if (analysisCount >= 1 && !hasUnlimitedAccess) {
+      setShowModal(true);
+      return;
+    }
+    runAnalysis();
+  }, [rows, analysisCount, hasUnlimitedAccess, runAnalysis]);
+
+  const unlockAccess = useCallback(() => {
+    setHasUnlimitedAccess(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("viraliq_access", "true");
+    }
+  }, []);
 
   const filledCount = rows.filter((r) => r.topic.trim() && r.views).length;
 
@@ -526,10 +553,13 @@ export default function Home() {
               ))}
             </div>
 
+            {/* Beta banner */}
+            <BetaBanner hasUnlimitedAccess={hasUnlimitedAccess} onUnlock={unlockAccess} />
+
             <div
               style={{
                 textAlign: "center",
-                marginTop: 48,
+                marginTop: 24,
                 padding: "24px",
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
@@ -569,6 +599,18 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Paywall Modal */}
+      {showModal && (
+        <PaywallModal
+          onClose={() => setShowModal(false)}
+          onUnlock={() => {
+            unlockAccess();
+            setShowModal(false);
+            runAnalysis();
+          }}
+        />
+      )}
 
       {/* Footer */}
       <footer
@@ -734,6 +776,234 @@ function CardContent({ content, isStopDoing }: { content: string; isStopDoing: b
           </p>
         );
       })}
+    </div>
+  );
+}
+
+async function submitEmail(email: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/collect-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function PaywallModal({ onClose, onUnlock }: { onClose: () => void; onUnlock: () => void }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
+  const handleSubmit = async () => {
+    if (!email.includes("@")) {
+      setStatus("error");
+      return;
+    }
+    setStatus("loading");
+    const ok = await submitEmail(email);
+    if (ok) {
+      setStatus("success");
+      setTimeout(() => onUnlock(), 1200);
+    } else {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.75)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: 24,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="fade-in"
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: 20,
+          padding: "40px 36px",
+          maxWidth: 440,
+          width: "100%",
+          textAlign: "center",
+          boxShadow: "0 0 60px rgba(155, 92, 255, 0.15)",
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 12,
+            background: "rgba(155, 92, 255, 0.15)",
+            border: "1px solid rgba(155, 92, 255, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            margin: "0 auto 20px",
+          }}
+        >
+          ⚡
+        </div>
+
+        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 12 }}>
+          You&apos;ve used your free analysis
+        </h2>
+        <p style={{ fontSize: 15, color: "var(--text-dim)", lineHeight: 1.6, marginBottom: 28 }}>
+          ViralIQ is free during beta. Enter your email to unlock unlimited analyses — we&apos;ll let you know when we launch.
+        </p>
+
+        {status === "success" ? (
+          <p style={{ fontSize: 16, fontWeight: 700, color: "var(--purple)" }}>
+            You&apos;re in. Unlimited access unlocked 🔥
+          </p>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                style={{
+                  flex: 1,
+                  background: "var(--surface-2)",
+                  border: `1px solid ${status === "error" ? "rgba(255,80,80,0.4)" : "var(--border)"}`,
+                  color: "var(--text)",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={status === "loading"}
+                style={{
+                  background: "var(--purple)",
+                  color: "#fff",
+                  border: "none",
+                  padding: "12px 18px",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: status === "loading" ? "wait" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {status === "loading" ? "..." : "Unlock Access"}
+              </button>
+            </div>
+            {status === "error" && (
+              <p style={{ fontSize: 13, color: "#ff8080", marginBottom: 10 }}>
+                Please enter a valid email address.
+              </p>
+            )}
+            <p style={{ fontSize: 12, color: "var(--muted)" }}>
+              No spam. Unsubscribe anytime.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BetaBanner({ hasUnlimitedAccess, onUnlock }: { hasUnlimitedAccess: boolean; onUnlock: () => void }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
+  if (hasUnlimitedAccess && status !== "success") return null;
+
+  const handleSubmit = async () => {
+    if (!email.includes("@")) { setStatus("error"); return; }
+    setStatus("loading");
+    const ok = await submitEmail(email);
+    if (ok) {
+      setStatus("success");
+      onUnlock();
+    } else {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div
+      className="fade-in"
+      style={{
+        marginTop: 32,
+        padding: "28px 32px",
+        borderRadius: 16,
+        background: "linear-gradient(135deg, rgba(155,92,255,0.12) 0%, rgba(155,92,255,0.04) 100%)",
+        border: "1px solid rgba(155, 92, 255, 0.25)",
+        display: "flex",
+        alignItems: "center",
+        gap: 24,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 220 }}>
+        <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>
+          {status === "success"
+            ? "You're in. Unlimited access unlocked 🔥"
+            : "Like your strategy? Unlimited analyses are free during beta"}
+        </p>
+        {status !== "success" && (
+          <p style={{ fontSize: 13, color: "var(--text-dim)", margin: 0 }}>
+            Locks in at $10/month at launch — join free now.
+          </p>
+        )}
+      </div>
+      {status !== "success" && (
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          <input
+            type="email"
+            placeholder="your@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: `1px solid ${status === "error" ? "rgba(255,80,80,0.4)" : "rgba(155,92,255,0.3)"}`,
+              color: "var(--text)",
+              padding: "10px 14px",
+              borderRadius: 8,
+              fontSize: 14,
+              outline: "none",
+              width: 200,
+            }}
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={status === "loading"}
+            style={{
+              background: "var(--purple)",
+              color: "#fff",
+              border: "none",
+              padding: "10px 18px",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: status === "loading" ? "wait" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {status === "loading" ? "..." : "Get Unlimited Access"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
