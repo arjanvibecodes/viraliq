@@ -173,7 +173,7 @@ export default function Home() {
 
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 80px" }}>
         {/* Hero */}
-        <div style={{ textAlign: "center", marginBottom: 56 }}>
+        <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div
             style={{
               display: "inline-block",
@@ -185,7 +185,7 @@ export default function Home() {
               background: "rgba(155, 92, 255, 0.1)",
               padding: "6px 14px",
               borderRadius: 20,
-              marginBottom: 20,
+              marginBottom: 24,
               border: "1px solid rgba(155, 92, 255, 0.2)",
             }}
           >
@@ -193,28 +193,31 @@ export default function Home() {
           </div>
           <h1
             style={{
-              fontSize: "clamp(32px, 5vw, 52px)",
+              fontSize: "clamp(36px, 5.5vw, 58px)",
               fontWeight: 800,
               letterSpacing: "-0.04em",
-              lineHeight: 1.1,
-              marginBottom: 16,
-              background: "linear-gradient(135deg, #fff 30%, #9B5CFF 100%)",
+              lineHeight: 1.08,
+              marginBottom: 24,
+              background: "linear-gradient(135deg, #fff 40%, #9B5CFF 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
             }}
           >
-            Know exactly what to post next.
+            Stop posting and praying.
           </h1>
           <p
             style={{
-              fontSize: 18,
+              fontSize: 19,
               color: "var(--text-dim)",
-              maxWidth: 520,
-              margin: "0 auto",
-              lineHeight: 1.6,
+              maxWidth: 580,
+              margin: "0 auto 16px",
+              lineHeight: 1.65,
             }}
           >
-            Paste your TikTok stats and get a data-driven strategy built from your best-performing content.
+            Most creators post and pray. ViralIQ reads your last 20 videos and tells you exactly what&apos;s working, what&apos;s not, and what to post next.
+          </p>
+          <p style={{ fontSize: 14, color: "var(--muted)", letterSpacing: "0.01em" }}>
+            Paste your stats below — results in under 30 seconds.
           </p>
         </div>
 
@@ -642,16 +645,95 @@ function AnalysisCard({ section, index }: { section: AnalysisSection; index: num
       />
 
       {/* Content */}
-      <p
-        style={{
-          fontSize: 14,
-          lineHeight: 1.75,
-          color: "#ccc",
-          whiteSpace: "pre-wrap",
-        }}
-      >
-        {section.content}
-      </p>
+      <CardContent content={section.content} isStopDoing={isStopDoing} />
+    </div>
+  );
+}
+
+function CardContent({ content, isStopDoing }: { content: string; isStopDoing: boolean }) {
+  // Split into numbered items (1) ... 2) ... 3) ...) or regular paragraphs
+  const numberedPattern = /(?:^|\n)(\d+\))\s+/;
+  const hasNumberedItems = numberedPattern.test(content);
+
+  if (hasNumberedItems) {
+    const items = content
+      .split(/\n?(\d+\))\s+/)
+      .filter(Boolean)
+      .reduce<string[]>((acc, part, i, arr) => {
+        if (/^\d+\)$/.test(part)) {
+          acc.push(part + " " + (arr[i + 1] || ""));
+        } else if (!/^\d+\)$/.test(arr[i - 1] || "")) {
+          acc.push(part);
+        }
+        return acc;
+      }, []);
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {items.map((item, i) => {
+          const isItem = /^\d+\)/.test(item);
+          if (!isItem) {
+            return (
+              <p key={i} style={{ fontSize: 14, lineHeight: 1.75, color: "#ccc", margin: 0 }}>
+                {item.trim()}
+              </p>
+            );
+          }
+          const dashIdx = item.indexOf(" — ");
+          const hook = dashIdx > -1 ? item.slice(0, dashIdx) : item;
+          const why = dashIdx > -1 ? item.slice(dashIdx + 3) : null;
+          return (
+            <div
+              key={i}
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: 8,
+                padding: "12px 14px",
+              }}
+            >
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#fff", margin: "0 0 4px" }}>
+                {hook.trim()}
+              </p>
+              {why && (
+                <p style={{ fontSize: 13, color: "var(--text-dim)", margin: 0, lineHeight: 1.6 }}>
+                  {why.trim()}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Regular content — split into paragraphs on double newline or sentence groups
+  const paragraphs = content.split(/\n+/).filter(Boolean);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {paragraphs.map((para, i) => {
+        // Highlight lines that start with "Theme" or a keyword marker
+        const isHighlight = /^Theme \d|^The winning|^Stop|^Recommended/i.test(para);
+        return (
+          <p
+            key={i}
+            style={{
+              fontSize: 14,
+              lineHeight: 1.75,
+              color: isHighlight ? "#e0e0e0" : "#aaa",
+              fontWeight: isHighlight ? 600 : 400,
+              margin: 0,
+              paddingLeft: isHighlight ? 10 : 0,
+              borderLeft: isHighlight
+                ? `2px solid ${isStopDoing ? "rgba(255,80,80,0.4)" : "var(--purple)"}`
+                : "none",
+            }}
+          >
+            {para}
+          </p>
+        );
+      })}
     </div>
   );
 }
